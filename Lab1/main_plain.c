@@ -1,12 +1,5 @@
 #include "kalman.h"
-
-int kalman_c(kalman_state *kstate, float measurement) {
-    kstate->p = kstate->p + kstate->q;
-    kstate->k = kstate->p / (kstate->p + kstate->r);
-    kstate->x = kstate->x + kstate->k * (measurement - kstate->x);
-    kstate->p = (1 - kstate->k) * kstate->p;
-    return 0;
-}
+#include <math.h>
 
 int Kalmanfilter(float* InputArray, float* OutputArray, kalman_state* kstate, int Length) {
     for (int i = 0; i < Length; i++) {
@@ -18,6 +11,14 @@ int Kalmanfilter(float* InputArray, float* OutputArray, kalman_state* kstate, in
         }
     }
 
+    return 0;
+}
+
+int kalman_c(kalman_state *kstate, float measurement) {
+    kstate->p = kstate->p + kstate->q;
+    kstate->k = kstate->p / (kstate->p + kstate->r);
+    kstate->x = kstate->x + kstate->k * (measurement - kstate->x);
+    kstate->p = (1 - kstate->k) * kstate->p;
     return 0;
 }
 

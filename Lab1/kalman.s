@@ -20,8 +20,8 @@ kalman:
 	VMLA.F32 S3, S5, S7 //x=x+k*(measurement-x)
 	
 	VMOV.F32 S8, #1.0
-	VSUB S7, S8, S5 //S7 = 1-k
-	VMUL S4, S7, S4 //p=(1-k) * p
+	VSUB.F32 S7, S8, S5 //S7 = 1-k
+	VMUL.F32 S4, S7, S4 //p=(1-k) * p
 	
 	VSTR S3, [R0, #8] //store x
 	VSTR S4, [R0, #12] //store p

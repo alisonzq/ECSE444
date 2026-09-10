@@ -23,6 +23,6 @@ int32_t correlate(float* InputArray, float* OutputArray, float* CorrResult, int 
 
 //Calculation of the convolution between the two vectors.
 int32_t convolve(float* InputArray, float* OutputArray, float* ConvResult, int Length) {
-    arm_convolve_f32(InputArray, Length, OutputArray, Length, ConvResult);
+    arm_conv_f32(InputArray, Length, OutputArray, Length, ConvResult);
     return 0;
 }
