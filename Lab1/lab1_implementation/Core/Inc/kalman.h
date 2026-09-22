@@ -9,7 +9,7 @@ typedef struct {
     float k; // adaptive Kalman filter gain
 } kalman_state;
 
-void kalman(kalman_state *kstate, float measurement);
+extern void kalman(kalman_state *kstate, float measurement);
 
 int Kalmanfilter(float* InputArray, float* OutputArray, kalman_state* kstate, int Length);
 

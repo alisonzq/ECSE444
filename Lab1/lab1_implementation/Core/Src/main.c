@@ -89,6 +89,11 @@ static void MX_USB_OTG_FS_USB_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+int substract(float* InputArray, float* OutputArray, float* DifferenceArray, int Length);
+int compute_stddev_and_avg(float* DifferenceArray, float* average, float* standard_deviation, int Length);
+int correlate(float* InputArray, float* OutputArray, float* CorrResult, int Length);
+int convolve(float* InputArray, float* OutputArray, float* ConvResult, int Length);
+
 /* USER CODE END 0 */
 
 /**
@@ -158,13 +163,16 @@ int main(void)
 
     float DifferenceArray[LENGTH];
     substract(InputArray, OutputArray, DifferenceArray, LENGTH);
+
+    float average = 0.0f;
+    float standard_deviation = 0.0f;
     compute_stddev_and_avg(DifferenceArray, &average, &standard_deviation, LENGTH);
 
     //correlation and convolution slide one array across the other across every possible overlap position
     float CorrResult[2*LENGTH-1];
     float ConvResult[2*LENGTH-1];
-    correlate(InputArray, OutputArray, CorrResult, 2*LENGTH-1);
-    convolve(InputArray, OutputArray, ConvResult, 2*LENGTH-1);
+    correlate(InputArray, OutputArray, CorrResult, LENGTH-1);
+    convolve(InputArray, OutputArray, ConvResult, LENGTH-1);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
