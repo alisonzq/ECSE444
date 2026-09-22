@@ -14,8 +14,17 @@ kalman:
 	VADD.F32 S4, S4, S1 //p=p+q
 	
 	VADD.F32 S6, S4, S2 //p+r
+	VCMP.F32 S6, #0.0 //sets FPSCR flags for comparison (runs on FPU)
+	VMRS APSR_nzcv, FPSCR //copy comparison result flags into APSR (Application Program Status Register)
+	BEQ zero_division 
+
 	VDIV.F32 S5, S4, S6 //k=p/(p+r)
-	
+	B update_state
+
+zero_division:
+	VMOV.F32 S5, #1.0 
+
+update_state:
 	VSUB.F32 S7, S0, S3 //S7 = measurement-x
 	VMLA.F32 S3, S5, S7 //x=x+k*(measurement-x)
 	
@@ -27,3 +36,5 @@ kalman:
 	VSTR S4, [R0, #12] //store p
 	VSTR S5, [R0, #16] //store k
 	BX LR
+
+	
