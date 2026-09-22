@@ -171,8 +171,8 @@ int main(void)
     //correlation and convolution slide one array across the other across every possible overlap position
     float CorrResult[2*LENGTH-1];
     float ConvResult[2*LENGTH-1];
-    correlate(InputArray, OutputArray, CorrResult, LENGTH-1);
-    convolve(InputArray, OutputArray, ConvResult, LENGTH-1);
+    correlate(InputArray, OutputArray, CorrResult, LENGTH);
+    convolve(InputArray, OutputArray, ConvResult, LENGTH);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
