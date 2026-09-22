@@ -1,7 +1,10 @@
 .syntax unified
+.thumb
 .align 16
 .section .text, "x"
 .global kalman
+.thumb_func
+.type kalman, %function
 
 //R0 = pointer to kalman_state {q,r,x,p,k} (offsets 0,4,8,12,16)
 //S0 = measurement
@@ -10,9 +13,9 @@ kalman:
 	VLDR S2, [R0, #4] //r
 	VLDR S3, [R0, #8] //x
 	VLDR S4, [R0, #12] //p
-	
+
 	VADD.F32 S4, S4, S1 //p=p+q
-	
+
 	VADD.F32 S6, S4, S2 //p+r
 	VCMP.F32 S6, #0.0 //sets FPSCR flags for comparison (runs on FPU)
 	VMRS APSR_nzcv, FPSCR //copy comparison result flags into APSR (Application Program Status Register)
@@ -31,7 +34,7 @@ update_state:
 	VMOV.F32 S8, #1.0
 	VSUB.F32 S7, S8, S5 //S7 = 1-k
 	VMUL.F32 S4, S7, S4 //p=(1-k) * p
-	
+
 	VSTR S3, [R0, #8] //store x
 	VSTR S4, [R0, #12] //store p
 	VSTR S5, [R0, #16] //store k
