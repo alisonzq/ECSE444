@@ -1,0 +1,32 @@
+# Build outputs
+build/
+Debug/
+Release/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+.ninja_deps
+.ninja_log
+*.ninja
+
+# Compiled artifacts
+*.o
+*.obj
+*.d
+*.su
+*.elf
+*.bin
+*.hex
+*.map
+*.lst
+
+# STM32CubeMX / IDE artifacts
+mx.scratch
+.mxproject
+.vscode/
+.clangd
+
+# Keep CubeIDE settings available if you want to commit them
+!.settings/
