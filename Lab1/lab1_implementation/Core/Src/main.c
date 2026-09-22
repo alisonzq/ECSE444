@@ -25,6 +25,7 @@
 #include "arm_math.h"
 #include "kalman.h"
 #include "math.h"
+#define LENGTH 100
 
 /* USER CODE END Includes */
 
@@ -151,9 +152,19 @@ int main(void)
     };
 
     float InputArray[] = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0};
-    float OutputArray[10];
+    float OutputArray[LENGTH];
 
-    Kalmanfilter(InputArray, OutputArray, &ks, 10);
+    Kalmanfilter(InputArray, OutputArray, &ks, LENGTH);
+
+    float DifferenceArray[LENGTH];
+    substract(InputArray, OutputArray, DifferenceArray, LENGTH);
+    compute_stddev_and_avg(DifferenceArray, &average, &standard_deviation, LENGTH);
+
+    //correlation and convolution slide one array across the other across every possible overlap position
+    float CorrResult[2*LENGTH-1];
+    float ConvResult[2*LENGTH-1];
+    correlate(InputArray, OutputArray, CorrResult, 2*LENGTH-1);
+    convolve(InputArray, OutputArray, ConvResult, 2*LENGTH-1);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
