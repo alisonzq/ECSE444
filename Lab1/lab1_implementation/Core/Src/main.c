@@ -24,8 +24,9 @@
 #define ARM_MATH_CM4
 #include "arm_math.h"
 #include "kalman.h"
+#include "kalmanMath.h"
 #include "math.h"
-#define LENGTH 100
+#define LENGTH 10
 
 /* USER CODE END Includes */
 
@@ -89,11 +90,6 @@ static void MX_USB_OTG_FS_USB_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-int substract(float* InputArray, float* OutputArray, float* DifferenceArray, int Length);
-int compute_stddev_and_avg(float* DifferenceArray, float* average, float* standard_deviation, int Length);
-int correlate(float* InputArray, float* OutputArray, float* CorrResult, int Length);
-int convolve(float* InputArray, float* OutputArray, float* ConvResult, int Length);
-
 /* USER CODE END 0 */
 
 /**
@@ -141,14 +137,7 @@ int main(void)
   MX_USART3_UART_Init();
   MX_USB_OTG_FS_USB_Init();
   /* USER CODE BEGIN 2 */
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-    /* USER CODE END WHILE */
-    kalman_state ks = {
+  kalman_state ks = {
       .q = 0.1f,
       .r = 0.1f,
       .x = 5.0f,
@@ -173,8 +162,17 @@ int main(void)
     float ConvResult[2*LENGTH-1];
     correlate(InputArray, OutputArray, CorrResult, LENGTH);
     convolve(InputArray, OutputArray, ConvResult, LENGTH);
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+  while (1)
+  {
+    /* USER CODE END WHILE */
+    
     /* USER CODE BEGIN 3 */
   }
+  
   /* USER CODE END 3 */
 }
 
@@ -939,7 +937,7 @@ static void MX_GPIO_Init(void)
 
 int Kalmanfilter(float* InputArray, float* OutputArray, kalman_state* kstate, int Length) {
   for (int i = 0; i < Length; i++) {
-    kalman(kstate, InputArray[i]);
+    KALMAN_STEP(kstate, InputArray[i]);
     OutputArray[i] = kstate->x;
 
     if (isnan(kstate->x)) {
@@ -947,66 +945,6 @@ int Kalmanfilter(float* InputArray, float* OutputArray, kalman_state* kstate, in
     }
   }
 
-  return 0;
-}
-
-void kalman_c(kalman_state *kstate, float measurement) {
-  kstate->p = kstate->p + kstate->q;
-  kstate->k = kstate->p / (kstate->p + kstate->r);
-  kstate->x = kstate->x + kstate->k * (measurement - kstate->x);
-  kstate->p = (1 - kstate->k) * kstate->p;
-}
-
-int substract(float* InputArray, float* OutputArray, float* DifferenceArray, int Length) {
-  for (int i = 0; i < Length; i++) {
-    DifferenceArray[i] = InputArray[i] - OutputArray[i];
-  }
-  return 0;
-}
-
-int compute_stddev_and_avg(float* DifferenceArray, float* average, float* standard_deviation, int Length) {
-  float sum = 0;
-  for (int i = 0; i < Length; i++) {
-    sum += DifferenceArray[i];
-  }
-  *average = sum / Length;
-
-  float variance_sum = 0;
-  for (int i = 0; i < Length; i++) {
-    variance_sum += (DifferenceArray[i] - *average) * (DifferenceArray[i] - *average);
-  }
-  *standard_deviation = sqrt(variance_sum / Length);
-  return 0;
-}
-
-int correlate(float* InputArray, float* OutputArray, float* CorrResult, int Length) {
-  int result_length = 2 * Length - 1;
-  for (int n = 0; n < result_length; n++) {
-    float sum = 0;
-    int shift = n - (Length - 1);
-    for (int i = 0; i < Length; i++) {
-      int j = i + shift;
-      if (j >= 0 && j < Length) {
-        sum += InputArray[i] * OutputArray[j];
-      }
-    }
-    CorrResult[n] = sum;
-  }
-  return 0;
-}
-
-int convolve(float* InputArray, float* OutputArray, float* ConvResult, int Length) {
-  int result_length = 2 * Length - 1;
-  for (int n = 0; n < result_length; n++) {
-    float sum = 0;
-    for (int i = 0; i < Length; i++) {
-      int j = n - i;
-      if (j >= 0 && j < Length) {
-        sum += InputArray[i] * OutputArray[j];
-      }
-    }
-    ConvResult[n] = sum;
-  }
   return 0;
 }
 
