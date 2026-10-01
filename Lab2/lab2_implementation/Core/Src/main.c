@@ -144,7 +144,6 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     //STEP 1: Read the button state
-    /*
     GPIO_PinState buttonState = HAL_GPIO_ReadPin(BUTTON_EXTI13_GPIO_Port, BUTTON_EXTI13_Pin);
     
     //detect falling edge: HIGH -> LOW means button just got pressed
@@ -154,7 +153,7 @@ int main(void)
         HAL_Delay(50); //debounce
     }
 
-    lastButtonState = buttonState; */
+    lastButtonState = buttonState; 
 
     //STEP 2: Read the ADC value
     HAL_ADC_Start(&hadc1);
