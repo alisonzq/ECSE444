@@ -90,6 +90,8 @@ static void MX_USB_OTG_FS_USB_Init(void);
   * @brief  The application entry point.
   * @retval int
   */
+typedef enum { MODE_VOLTAGE, MODE_TEMPERATURE } MeasurementMode; // STEP 4
+
 int main(void)
 {
 
@@ -151,6 +153,8 @@ int main(void)
   sConfigTemp.OffsetNumber = ADC_OFFSET_NONE;
   sConfigTemp.Offset       = 0;
 
+  MeasurementMode currentMode = MODE_VOLTAGE; // STEP 4: keep track of which reading is currently active
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -166,35 +170,46 @@ int main(void)
     //detect falling edge: HIGH -> LOW means button just got pressed
     if (buttonState == GPIO_PIN_RESET && lastButtonState == GPIO_PIN_SET)
     {
-        HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
-        HAL_Delay(50); //debounce
+      //STEP 4: button press switches the active measurement mode
+      currentMode = (currentMode == MODE_VOLTAGE) ? MODE_TEMPERATURE : MODE_VOLTAGE;
+      HAL_Delay(50); //debounce
     }
 
     lastButtonState = buttonState; 
 
-    //STEP 2: Read the reference voltage (VREFINT)
-    HAL_ADC_ConfigChannel(&hadc1, &sConfigVrefint); // (re)point ADC1 at VREFINT
-    HAL_ADC_Start(&hadc1);
-    HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
-    uint32_t rawValue = HAL_ADC_GetValue(&hadc1);
-    HAL_ADC_Stop(&hadc1);
+    //STEP 4: only reconfigure/read the ADC channel for the currently active mode
+    if (currentMode == MODE_VOLTAGE)
+    {
+      //STEP 2: Read the reference voltage (VREFINT)
+      HAL_ADC_ConfigChannel(&hadc1, &sConfigVrefint); // (re)point ADC1 at VREFINT
+      HAL_ADC_Start(&hadc1);
+      HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+      uint32_t rawValue = HAL_ADC_GetValue(&hadc1);
+      HAL_ADC_Stop(&hadc1);
 
-    //convert using the factory VREFINT calibration value, a fixed pointer defined by the HAL/CMSIS device header
-    uint16_t vrefint_cal = *VREFINT_CAL_ADDR; // calibration reading taken at VDDA = 3.0V
-    voltage_mV = 3000.0f * (float)vrefint_cal / (float)rawValue;  // your actual VDDA, in mV
+      //convert using the factory VREFINT calibration value, a fixed pointer defined by the HAL/CMSIS device header
+      uint16_t vrefint_cal = *VREFINT_CAL_ADDR; // calibration reading taken at VDDA = 3.0V
+      voltage_mV = 3000.0f * (float)vrefint_cal / (float)rawValue;  // your actual VDDA, in mV
 
-    //STEP 3: Read the internal temperature sensor
-    HAL_ADC_ConfigChannel(&hadc1, &sConfigTemp); // reconfigure ADC1 to point at the temp sensor
-    HAL_ADC_Start(&hadc1);
-    HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
-    uint32_t rawTemp = HAL_ADC_GetValue(&hadc1);
-    HAL_ADC_Stop(&hadc1);
+      HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_SET); // LED ON = voltage mode
+    }
+    else // MODE_TEMPERATURE
+    {
+      //STEP 3: Read the internal temperature sensor
+      HAL_ADC_ConfigChannel(&hadc1, &sConfigTemp); // reconfigure ADC1 to point at the temp sensor
+      HAL_ADC_Start(&hadc1);
+      HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+      uint32_t rawTemp = HAL_ADC_GetValue(&hadc1);
+      HAL_ADC_Stop(&hadc1);
 
-    //convert raw reading to Celsius using the two-point factory calibration, addr from HAL device header)
-    float tempDiff = (float)(TEMPSENSOR_CAL2_TEMP - TEMPSENSOR_CAL1_TEMP); // difference in Celsius between the two calibration points
-    float rawDiff = (float)(*TEMPSENSOR_CAL2_ADDR - *TEMPSENSOR_CAL1_ADDR); // difference in raw readings between the two calibration points
-    float rawOffset = (float)rawTemp - (float)(*TEMPSENSOR_CAL1_ADDR); // difference between the current reading and the first calibration point
-    temperature_C = (tempDiff / rawDiff) * rawOffset + (float)TEMPSENSOR_CAL1_TEMP; // slope × offset + 30°C
+      //convert raw reading to Celsius using the two-point factory calibration, addr from HAL device header)
+      float tempDiff = (float)(TEMPSENSOR_CAL2_TEMP - TEMPSENSOR_CAL1_TEMP); // difference in Celsius between the two calibration points
+      float rawDiff = (float)(*TEMPSENSOR_CAL2_ADDR - *TEMPSENSOR_CAL1_ADDR); // difference in raw readings between the two calibration points
+      float rawOffset = (float)rawTemp - (float)(*TEMPSENSOR_CAL1_ADDR); // difference between the current reading and the first calibration point
+      temperature_C = (tempDiff / rawDiff) * rawOffset + (float)TEMPSENSOR_CAL1_TEMP; // slope × offset + 30°C
+
+      HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_RESET); // LED OFF = temperature mode
+    }
   }
   /* USER CODE END 3 */
 }
