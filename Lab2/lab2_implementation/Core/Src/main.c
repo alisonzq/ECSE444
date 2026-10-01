@@ -132,6 +132,7 @@ int main(void)
   MX_USB_OTG_FS_USB_Init();
   /* USER CODE BEGIN 2 */
   GPIO_PinState lastButtonState = GPIO_PIN_SET; // idle = HIGH
+  float voltage_mV = 0.0f;
 
   /* USER CODE END 2 */
 
@@ -142,6 +143,8 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    //STEP 1: Read the button state
+    /*
     GPIO_PinState buttonState = HAL_GPIO_ReadPin(BUTTON_EXTI13_GPIO_Port, BUTTON_EXTI13_Pin);
     
     //detect falling edge: HIGH -> LOW means button just got pressed
@@ -151,7 +154,18 @@ int main(void)
         HAL_Delay(50); //debounce
     }
 
-    lastButtonState = buttonState;
+    lastButtonState = buttonState; */
+
+    //STEP 2: Read the ADC value
+    HAL_ADC_Start(&hadc1);
+    HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+    uint32_t rawValue = HAL_ADC_GetValue(&hadc1);
+    HAL_ADC_Stop(&hadc1);
+
+    //convert using the factory VREFINT calibration value, a fixed pointer defined by the HAL/CMSIS device header
+    uint16_t vrefint_cal = *VREFINT_CAL_ADDR; // calibration reading taken at VDDA = 3.0V
+    voltage_mV = 3000.0f * (float)vrefint_cal / (float)rawValue;  // your actual VDDA, in mV
+
   }
   /* USER CODE END 3 */
 }
@@ -911,6 +925,40 @@ static void MX_GPIO_Init(void)
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
   /* USER CODE END MX_GPIO_Init_2 */
+}
+
+ADC_HandleTypeDef hadc1;
+
+static void MX_ADC1_Init(void)
+{
+    __HAL_RCC_ADC_CLK_ENABLE();
+
+    ADC_ChannelConfTypeDef sConfig = {0};
+
+    hadc1.Instance = ADC1;
+    hadc1.Init.ClockPrescaler        = ADC_CLOCK_ASYNC_DIV1;
+    hadc1.Init.Resolution            = ADC_RESOLUTION_12B;
+    hadc1.Init.DataAlign             = ADC_DATAALIGN_RIGHT;
+    hadc1.Init.ScanConvMode          = ADC_SCAN_DISABLE;
+    hadc1.Init.EOCSelection          = ADC_EOC_SINGLE_CONV;
+    hadc1.Init.ContinuousConvMode    = DISABLE;
+    hadc1.Init.NbrOfConversion       = 1;
+    hadc1.Init.DiscontinuousConvMode = DISABLE;
+    hadc1.Init.ExternalTrigConv      = ADC_SOFTWARE_START;
+    hadc1.Init.ExternalTrigConvEdge  = ADC_EXTERNALTRIGCONVEDGE_NONE;
+    hadc1.Init.DMAContinuousRequests = DISABLE;
+    hadc1.Init.Overrun               = ADC_OVR_DATA_PRESERVED;
+    hadc1.Init.OversamplingMode      = DISABLE;
+    HAL_ADC_Init(&hadc1);
+
+    // Point the ADC at the internal VREFINT channel (not an external pin)
+    sConfig.Channel      = ADC_CHANNEL_VREFINT;
+    sConfig.Rank         = ADC_REGULAR_RANK_1;
+    sConfig.SamplingTime = ADC_SAMPLETIME_640CYCLES_5; // internal channels need a long sample time
+    sConfig.SingleDiff   = ADC_SINGLE_ENDED;
+    sConfig.OffsetNumber = ADC_OFFSET_NONE;
+    sConfig.Offset       = 0;
+    HAL_ADC_ConfigChannel(&hadc1, &sConfig);
 }
 
 /* USER CODE BEGIN 4 */
