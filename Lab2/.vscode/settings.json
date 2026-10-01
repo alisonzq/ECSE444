@@ -1,0 +1,8 @@
+{
+    "cmake.sourceDirectory": "/Users/alisonquach/Documents/ECSE 444/ECSE444/Lab2/lab2_implementation",
+    "cmake.environment": {
+        "PATH": "/Users/alisonquach/Library/Application Support/stm32cube/bundles/ninja/1.13.2+st.1/bin:/Applications/STM32CubeIDE.app/Contents/Eclipse/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.12.3.rel1.macos64_1.1.0.202410301201/tools/bin:${env:PATH}"
+    },
+    "cmake.useCMakePresets": "always",
+    "cmake.options.statusBarVisibility": "visible"
+}
