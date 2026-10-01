@@ -14,6 +14,16 @@ kalman:
 	VLDR S3, [R0, #8] //x
 	VLDR S4, [R0, #12] //p
 
+	//Validate q
+	VCMP.F32 S1, #0.0
+	VMRS APSR_nzcv, FPSCR
+	BMI invalid_input
+
+	//Validate r
+	VCMP.F32 S2, #0.0
+	VMRS APSR_nzcv, FPSCR
+	BMI invalid_input
+
 	VADD.F32 S4, S4, S1 //p=p+q
 
 	VADD.F32 S6, S4, S2 //p+r
@@ -35,9 +45,23 @@ update_state:
 	VSUB.F32 S7, S8, S5 //S7 = 1-k
 	VMUL.F32 S4, S7, S4 //p=(1-k) * p
 
+	//clamp p to zero if rounding pushed it to negative
+	VCMP.F32 S4, #0.0
+	VMRS APSR_nzcv, FPSCR
+	BGE store_state // p >= 0, nothing to fix
+
+	VSUB.F32 S4, S4, S4 //set p to 0
+
+store_state:
 	VSTR S3, [R0, #8] //store x
 	VSTR S4, [R0, #12] //store p
 	VSTR S5, [R0, #16] //store k
+	BX LR
+
+invalid_input:
+	VSUB.F32 S3, S3, S3 //set x to NaN
+	VDIV.F32 S3, S3, S3 //set x to NaN
+	VSTR S3, [R0, #8] //store NaN into x , so caller<s isnan() check catches it
 	BX LR
 
 	

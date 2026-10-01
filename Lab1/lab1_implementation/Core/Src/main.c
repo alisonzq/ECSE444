@@ -26,7 +26,7 @@
 #include "kalman.h"
 #include "kalmanMath.h"
 #include "math.h"
-#define LENGTH 10
+
 
 /* USER CODE END Includes */
 
@@ -37,7 +37,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define LENGTH 5
+#define ITM_Port32(n) (*((volatile unsigned long *)(0xE0000000+4*n)))
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -137,18 +138,23 @@ int main(void)
   MX_USART3_UART_Init();
   MX_USB_OTG_FS_USB_Init();
   /* USER CODE BEGIN 2 */
+  ITM_Port32(31) = 30;
   kalman_state ks = {
-      .q = 0.1f,
-      .r = 0.1f,
-      .x = 5.0f,
-      .p = 0.1f,
+      .q = 0.0f,
+      .r = 0.2f,
+      .x = 0.0f,
+      .p = -0.2f,
       .k = 0.0f
     };
 
-    float InputArray[] = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0};
+    float InputArray[] = {
+    2.0, 3.0, 1.5, 4.0, 2.5
+    };
     float OutputArray[LENGTH];
 
-    Kalmanfilter(InputArray, OutputArray, &ks, LENGTH);
+    int error = Kalmanfilter(InputArray, OutputArray, &ks, LENGTH);
+
+    ITM_Port32(31) = 31;
 
     float DifferenceArray[LENGTH];
     substract(InputArray, OutputArray, DifferenceArray, LENGTH);
@@ -162,6 +168,8 @@ int main(void)
     float ConvResult[2*LENGTH-1];
     correlate(InputArray, OutputArray, CorrResult, LENGTH);
     convolve(InputArray, OutputArray, ConvResult, LENGTH);
+
+    ITM_Port32(31) = 32;
   /* USER CODE END 2 */
 
   /* Infinite loop */

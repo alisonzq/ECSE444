@@ -1,0 +1,18 @@
+plain C with cmsis math : 0.16 start to Kalman end, 1.329067 start to stat end
+avg = 0.5821
+stdev = 0.25
+c with assembly with cmsis math : 0.111467 start to Kalman end, 1.283734 start to stat end
+avg = 0.5821
+stdev = 0.25
+c with cmsis with cmsis math : 0.353067 start to Kalman end, 1.5216 start to stat end
+avg = 0.5821
+stdev = 0.25
+plain C with plain C math : 0.16 start to Kalman end, 14.5168 start to stat end
+avg = 0.582097888
+std dev = 0.24874796
+C with assembly with plain C math : 0.111467 start to Kalman end, 14.467734 start to stat end
+avg = 0.582097888
+std dev = 0.24874796
+C with cmsis with plain C math : 0.349867 start to Kalman end, 14.706134 start to stat end
+avg = 0.582097888
+std dev = 0.24874796
