@@ -133,6 +133,23 @@ int main(void)
   /* USER CODE BEGIN 2 */
   GPIO_PinState lastButtonState = GPIO_PIN_SET; // idle = HIGH
   float voltage_mV = 0.0f;
+  float temperature_C = 0.0f;
+
+  ADC_ChannelConfTypeDef sConfigVrefint = {0};
+  sConfigVrefint.Channel      = ADC_CHANNEL_VREFINT;
+  sConfigVrefint.Rank         = ADC_REGULAR_RANK_1;
+  sConfigVrefint.SamplingTime = ADC_SAMPLETIME_640CYCLES_5;
+  sConfigVrefint.SingleDiff   = ADC_SINGLE_ENDED;
+  sConfigVrefint.OffsetNumber = ADC_OFFSET_NONE;
+  sConfigVrefint.Offset       = 0;
+
+  ADC_ChannelConfTypeDef sConfigTemp = {0};
+  sConfigTemp.Channel      = ADC_CHANNEL_TEMPSENSOR;
+  sConfigTemp.Rank         = ADC_REGULAR_RANK_1;
+  sConfigTemp.SamplingTime = ADC_SAMPLETIME_640CYCLES_5;
+  sConfigTemp.SingleDiff   = ADC_SINGLE_ENDED;
+  sConfigTemp.OffsetNumber = ADC_OFFSET_NONE;
+  sConfigTemp.Offset       = 0;
 
   /* USER CODE END 2 */
 
@@ -142,7 +159,7 @@ int main(void)
   {
     /* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
+    /* USER CODE BEGIN 3 */ 
     //STEP 1: Read the button state
     GPIO_PinState buttonState = HAL_GPIO_ReadPin(BUTTON_EXTI13_GPIO_Port, BUTTON_EXTI13_Pin);
     
@@ -155,7 +172,8 @@ int main(void)
 
     lastButtonState = buttonState; 
 
-    //STEP 2: Read the ADC value
+    //STEP 2: Read the reference voltage (VREFINT)
+    HAL_ADC_ConfigChannel(&hadc1, &sConfigVrefint); // (re)point ADC1 at VREFINT
     HAL_ADC_Start(&hadc1);
     HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
     uint32_t rawValue = HAL_ADC_GetValue(&hadc1);
@@ -165,6 +183,18 @@ int main(void)
     uint16_t vrefint_cal = *VREFINT_CAL_ADDR; // calibration reading taken at VDDA = 3.0V
     voltage_mV = 3000.0f * (float)vrefint_cal / (float)rawValue;  // your actual VDDA, in mV
 
+    //STEP 3: Read the internal temperature sensor
+    HAL_ADC_ConfigChannel(&hadc1, &sConfigTemp); // reconfigure ADC1 to point at the temp sensor
+    HAL_ADC_Start(&hadc1);
+    HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+    uint32_t rawTemp = HAL_ADC_GetValue(&hadc1);
+    HAL_ADC_Stop(&hadc1);
+
+    //convert raw reading to Celsius using the two-point factory calibration, addr from HAL device header)
+    float tempDiff = (float)(TEMPSENSOR_CAL2_TEMP - TEMPSENSOR_CAL1_TEMP); // difference in Celsius between the two calibration points
+    float rawDiff = (float)(*TEMPSENSOR_CAL2_ADDR - *TEMPSENSOR_CAL1_ADDR); // difference in raw readings between the two calibration points
+    float rawOffset = (float)rawTemp - (float)(*TEMPSENSOR_CAL1_ADDR); // difference between the current reading and the first calibration point
+    temperature_C = (tempDiff / rawDiff) * rawOffset + (float)TEMPSENSOR_CAL1_TEMP; // slope × offset + 30°C
   }
   /* USER CODE END 3 */
 }
