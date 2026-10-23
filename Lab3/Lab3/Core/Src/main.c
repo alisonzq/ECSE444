@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "arm_math.h" 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -31,7 +31,11 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define PART_1 1
+#define PART_1_SINE 2
+#define PART_2 3
+#define PART_3 4
+#define IMPLEMENTATION_MODE PART_1_SINE
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -45,10 +49,12 @@ DAC_HandleTypeDef hdac1;
 TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
-uint32_t dac_value1 = 0;
-uint32_t dac_value2 = 0;
+#if IMPLEMENTATION_MODE == PART_1
+int32_t dac_value1 = 0;
+int32_t dac_value2 = 0;
 uint32_t sawtooth_step = 273;
 uint32_t tri_step = 546;
+#endif
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -105,43 +111,70 @@ int main(void)
   MX_DAC1_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
+  #if IMPLEMENTATION_MODE == PART_1
   HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
   HAL_DAC_Start(&hdac1, DAC_CHANNEL_2);
   HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 0);
   HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_2, DAC_ALIGN_12B_R, 0);
   int tri_direction = 1; // 1 for increasing, -1 for decreasing
+  #endif
+  #if IMPLEMENTATION_MODE == PART_1_SINE
+  HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
+
+  static uint16_t sine_lut[15]; // 15ms/1ms = 15 samples
+  static volatile uint32_t idx = 0;
+
+  for (uint32_t n = 0; n < 15; n++) { //pregenerate the sine wave lookup table
+        float32_t theta = 2.0f * PI * (float32_t)n / (float32_t)15;
+        float32_t s     = arm_sin_f32(theta);          // -1.0 .. +1.0
+        float32_t v     = 2047.5 + 2047.5 * s;       //  0.0 .. 4095.0
+
+        // round and clamp so it can never overflow the 12-bit DAC
+        if (v < 0.0f)    v = 0.0f;
+        if (v > 4095.0f) v = 4095.0f;
+        sine_lut[n] = (uint16_t)(v + 0.5f);
+    }
+  #endif
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    // HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 4095);
-    // HAL_Delay(1000);
-    // HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 0);
-    // HAL_Delay(1000);
+    #if IMPLEMENTATION_MODE == PART_1
     if (tri_direction == 1) {
-        dac_value1+= tri_step; // Increment by the step size
-        if (dac_value1 >= 4095) {
-            tri_direction = -1; // Change direction to decreasing
-        }
-    } else {
-        dac_value1-= tri_step; // Decrement by the step size
-        if (dac_value1 <= 0) {
-            tri_direction = 1; // Change direction to increasing
-        }
+    dac_value1 += tri_step;
+    if (dac_value1 >= 4095) {
+        dac_value1 = 4095;
+        tri_direction = -1;
     }
-    HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, dac_value1);
+} else {
+    dac_value1 -= tri_step;
+    if (dac_value1 <= 0) {
+        dac_value1 = 0;
+        tri_direction = 1;
+    }
+}
+    HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, (uint32_t)dac_value1);
 
     if (dac_value2 < 4095) {
         dac_value2+= sawtooth_step; // Increment by the step size
     } else {
         dac_value2 = 0; // Reset to 0 when it reaches the maximum
     }
-    HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_2, DAC_ALIGN_12B_R, dac_value2);
+    HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_2, DAC_ALIGN_12B_R, (uint32_t)dac_value2);
 
     HAL_Delay(1);
+    #endif
 
+    #if IMPLEMENTATION_MODE == PART_1_SINE
+    HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, sine_lut[idx]);
+    idx++;
+    if (idx >= 15) {
+        idx = 0;
+    }
+    HAL_Delay(1);
+    #endif
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
