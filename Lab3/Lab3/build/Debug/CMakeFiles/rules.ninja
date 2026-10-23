@@ -62,7 +62,7 @@ rule C_COMPILER__STM32_Drivers_unscanned_Debug
 # Rule for re-running cmake.
 
 rule RERUN_CMAKE
-  command = C:\ST\STM32CubeIDE_2.2.0\STM32CubeIDE\plugins\com.st.stm32cube.ide.mcu.externaltools.cmake.win32_1.1.200.202605190741\tools\bin\cmake.exe --regenerate-during-build -SC:\Users\kevin\Documents\Coding\ECSE444\Lab3\Lab3 -BC:\Users\kevin\Documents\Coding\ECSE444\Lab3\Lab3\build\Debug
+  command = C:\Users\kevin\AppData\Local\stm32cube\bundles\cmake\4.3.1+st.1\bin\cmake.exe --regenerate-during-build -SC:\Users\kevin\Documents\Coding\ECSE444\Lab3\Lab3 -BC:\Users\kevin\Documents\Coding\ECSE444\Lab3\Lab3\build\Debug
   description = Re-running CMake...
   generator = 1
 
@@ -71,7 +71,7 @@ rule RERUN_CMAKE
 # Rule for cleaning additional files.
 
 rule CLEAN_ADDITIONAL
-  command = C:\ST\STM32CubeIDE_2.2.0\STM32CubeIDE\plugins\com.st.stm32cube.ide.mcu.externaltools.cmake.win32_1.1.200.202605190741\tools\bin\cmake.exe -DCONFIG=$CONFIG -P CMakeFiles\clean_additional.cmake
+  command = C:\Users\kevin\AppData\Local\stm32cube\bundles\cmake\4.3.1+st.1\bin\cmake.exe -DCONFIG=$CONFIG -P CMakeFiles\clean_additional.cmake
   description = Cleaning additional files...
 
 
