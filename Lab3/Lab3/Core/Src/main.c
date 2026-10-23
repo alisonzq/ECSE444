@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "arm_math.h" 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -44,6 +44,17 @@ DAC_HandleTypeDef hdac1;
 
 /* USER CODE BEGIN PV */
 
+#if IMPLEMENTATION_MODE == PART_2 || IMPLEMENTATION_MODE == PART_3
+#define N_SAMPLES 32 // 44.1 kHz / 32 = 1378 Hz tone
+uint8_t sine[N_SAMPLES]; // 8-bit DAC values
+volatile uint32_t sineIndex = 0;
+#endif
+
+#if IMPLEMENTATION_MODE == PART_3
+#define N_TONES 3
+const uint32_t toneARR[N_TONES] = {477, 378, 318};   // C6, E6, G6 at 16 MHz, 32 samples
+volatile uint8_t toneIndex = 0;
+#endif
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -89,8 +100,26 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DAC1_Init();
-  /* USER CODE BEGIN 2 */
 
+  /* USER CODE BEGIN 2 */
+  #if IMPLEMENTATION_MODE == PART_2 || IMPLEMENTATION_MODE == PART_3
+  for (int n = 0; n < N_SAMPLES; n++) {
+    float32_t s = arm_sin_f32(2.0f * PI * n / N_SAMPLES); //-1 to +1
+    sine[n] = (uint8_t)(128 + 85 * s); // 85 is about 2/3 of 0..255, avoid clipping, 85*s scales from -85 to +85, 128 + shifts it up so it’s centred in the middle of the range 43 to 213
+  }
+  #endif
+
+
+  #if IMPLEMENTATION_MODE == PART_2
+  HAL_DAC_Start(&hdac1, DAC_CHANNEL_1); // turn the DAC channel on 
+  HAL_TIM_Base_Start_IT(&htim2); // start TIM2 WITH interrupts, every time the counter reaches ARR (44,100 times per second), the update event fires and HAL_TIM_PeriodElapsedCallback runs
+  #endif
+
+  #if IMPLEMENTATION_MODE == PART_3
+  __HAL_TIM_SET_AUTORELOAD(&htim2, toneARR[0]); //HAL macro that changes a timer’s ARR value while the program is running, changes the sample rate = how many samples the DAC outputs per second
+  HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t *)sine, N_SAMPLES, DAC_ALIGN_8B_R);
+  HAL_TIM_Base_Start(&htim2);
+  #endif
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -231,6 +260,39 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  if (GPIO_Pin == GPIO_EXTI13_Pin)
+  {
+    //part2
+    #if IMPLEMENTATION_MODE == PART_2
+    HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
+    #endif
+
+    #if IMPLEMENTATION_MODE == PART_3 //tone = sample rate / samples per period
+    static uint32_t lastPress = 0; 
+    uint32_t currentPress = HAL_GetTick(); // get the current time in milliseconds
+    if (currentPress - lastPress < 200) return;
+    lastPress = currentPress; // update the last press time
+
+    toneIndex++; // increment the tone index
+    if (toneIndex >= N_TONES) toneIndex = 0; // wrap back to 0
+    __HAL_TIM_SET_AUTORELOAD(&htim2, toneARR[toneIndex]); //change sample rate
+    HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
+    #endif
+  }
+}
+#if IMPLEMENTATION_MODE == PART_2
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+    if (htim->Instance == TIM2) {
+      HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_8B_R, sine[sineIndex]);
+      sineIndex++;
+      if (sineIndex >= N_SAMPLES) sineIndex = 0; // wrap back to 0
+    }
+}
+#endif
 
 /* USER CODE END 4 */
 
