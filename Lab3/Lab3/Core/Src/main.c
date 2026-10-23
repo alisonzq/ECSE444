@@ -49,7 +49,23 @@ DAC_HandleTypeDef hdac1;
 TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
+#if IMPLEMENTATION_MODE == PART_1
+int32_t dac_value1 = 0;
+int32_t dac_value2 = 0;
+uint32_t sawtooth_step = 273;
+uint32_t tri_step = 546;
+#endif
+#if IMPLEMENTATION_MODE == PART_2 || IMPLEMENTATION_MODE == PART_3
+#define N_SAMPLES 32 // 44.1 kHz / 32 = 1378 Hz tone
+uint8_t sine[N_SAMPLES]; // 8-bit DAC values
+volatile uint32_t sineIndex = 0;
+#endif
 
+#if IMPLEMENTATION_MODE == PART_3
+#define N_TONES 3
+const uint32_t toneARR[N_TONES] = {477, 378, 318};   // C6, E6, G6 at 16 MHz, 32 samples
+volatile uint8_t toneIndex = 0;
+#endif
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -104,8 +120,50 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DAC1_Init();
-  /* USER CODE BEGIN 2 */
+  MX_TIM2_Init();
 
+  /* USER CODE BEGIN 2 */
+  #if IMPLEMENTATION_MODE == PART_1
+  HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
+  HAL_DAC_Start(&hdac1, DAC_CHANNEL_2);
+  HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 0);
+  HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_2, DAC_ALIGN_12B_R, 0);
+  int tri_direction = 1; // 1 for increasing, -1 for decreasing
+  #endif
+  #if IMPLEMENTATION_MODE == PART_1_SINE
+  HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
+
+  static uint16_t sine_lut[15]; // 15ms/1ms = 15 samples
+  static volatile uint32_t idx = 0;
+
+  for (uint32_t n = 0; n < 15; n++) { //pregenerate the sine wave lookup table
+        float32_t theta = 2.0f * PI * (float32_t)n / (float32_t)15;
+        float32_t s     = arm_sin_f32(theta);          // -1.0 .. +1.0
+        float32_t v     = 2047.5 + 2047.5 * s;       //  0.0 .. 4095.0
+
+        // round and clamp so it can never overflow the 12-bit DAC
+        if (v < 0.0f)    v = 0.0f;
+        if (v > 4095.0f) v = 4095.0f;
+        sine_lut[n] = (uint16_t)(v + 0.5f);
+    }
+  #endif  #if IMPLEMENTATION_MODE == PART_2 || IMPLEMENTATION_MODE == PART_3
+  for (int n = 0; n < N_SAMPLES; n++) {
+    float32_t s = arm_sin_f32(2.0f * PI * n / N_SAMPLES); //-1 to +1
+    sine[n] = (uint8_t)(128 + 85 * s); // 85 is about 2/3 of 0..255, avoid clipping, 85*s scales from -85 to +85, 128 + shifts it up so it’s centred in the middle of the range 43 to 213
+  }
+  #endif
+
+
+  #if IMPLEMENTATION_MODE == PART_2
+  HAL_DAC_Start(&hdac1, DAC_CHANNEL_1); // turn the DAC channel on 
+  HAL_TIM_Base_Start_IT(&htim2); // start TIM2 WITH interrupts, every time the counter reaches ARR (44,100 times per second), the update event fires and HAL_TIM_PeriodElapsedCallback runs
+  #endif
+
+  #if IMPLEMENTATION_MODE == PART_3
+  __HAL_TIM_SET_AUTORELOAD(&htim2, toneARR[0]); //HAL macro that changes a timer’s ARR value while the program is running, changes the sample rate = how many samples the DAC outputs per second
+  HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t *)sine, N_SAMPLES, DAC_ALIGN_8B_R);
+  HAL_TIM_Base_Start(&htim2);
+  #endif
   /* USER CODE END 2 */
 
   /* Infinite loop */
