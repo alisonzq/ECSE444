@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "arm_math.h" 
+#include "stm32l4xx_hal_gpio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -35,7 +36,7 @@
 #define PART_1_SINE 2
 #define PART_2 3
 #define PART_3 4
-#define IMPLEMENTATION_MODE PART_1_SINE
+#define IMPLEMENTATION_MODE 4
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -45,6 +46,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 DAC_HandleTypeDef hdac1;
+DMA_HandleTypeDef hdma_dac1_ch1;
 
 TIM_HandleTypeDef htim2;
 
@@ -63,7 +65,7 @@ volatile uint32_t sineIndex = 0;
 
 #if IMPLEMENTATION_MODE == PART_3
 #define N_TONES 3
-const uint32_t toneARR[N_TONES] = {477, 378, 318};   // C6, E6, G6 at 16 MHz, 32 samples
+const uint32_t toneARR[N_TONES] = {3597, 3204, 2855};   // C6, D6, E6 at 120 MHz, 32 samples
 volatile uint8_t toneIndex = 0;
 #endif
 /* USER CODE END PV */
@@ -71,6 +73,7 @@ volatile uint8_t toneIndex = 0;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_DAC1_Init(void);
 static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
@@ -83,10 +86,34 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
   if (GPIO_Pin == GPIO_PIN_13)
   {
-    // Handle the button press event here
-    // For example, toggle an LED or change DAC output
+    //part2
+    #if IMPLEMENTATION_MODE == PART_2
+    HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
+    #endif
+
+    #if IMPLEMENTATION_MODE == PART_3 //tone = sample rate / samples per period
+    static uint32_t lastPress = 0; 
+    uint32_t currentPress = HAL_GetTick(); // get the current time in milliseconds
+    if (currentPress - lastPress < 200) return;
+    lastPress = currentPress; // update the last press time
+
+    toneIndex++; // increment the tone index
+    if (toneIndex >= N_TONES) toneIndex = 0; // wrap back to 0
+    __HAL_TIM_SET_AUTORELOAD(&htim2, toneARR[toneIndex]); //change sample rate
+    HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
+    #endif
   }
 }
+#if IMPLEMENTATION_MODE == PART_2
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+    if (htim->Instance == TIM2) {
+      HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_8B_R, sine[sineIndex]);
+      sineIndex++;
+      if (sineIndex >= N_SAMPLES) sineIndex = 0; // wrap back to 0
+    }
+}
+#endif
 
 /* USER CODE END 0 */
 
@@ -119,9 +146,9 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_DAC1_Init();
   MX_TIM2_Init();
-
   /* USER CODE BEGIN 2 */
   #if IMPLEMENTATION_MODE == PART_1
   HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
@@ -146,10 +173,11 @@ int main(void)
         if (v > 4095.0f) v = 4095.0f;
         sine_lut[n] = (uint16_t)(v + 0.5f);
     }
-  #endif  #if IMPLEMENTATION_MODE == PART_2 || IMPLEMENTATION_MODE == PART_3
+  #endif  
+  #if IMPLEMENTATION_MODE == PART_2 || IMPLEMENTATION_MODE == PART_3
   for (int n = 0; n < N_SAMPLES; n++) {
     float32_t s = arm_sin_f32(2.0f * PI * n / N_SAMPLES); //-1 to +1
-    sine[n] = (uint8_t)(128 + 85 * s); // 85 is about 2/3 of 0..255, avoid clipping, 85*s scales from -85 to +85, 128 + shifts it up so it’s centred in the middle of the range 43 to 213
+    sine[n] = (uint8_t)((1 + s)*85); // 85 is about 2/3 of 0..255, avoid clipping
   }
   #endif
 
@@ -222,7 +250,7 @@ void SystemClock_Config(void)
 
   /** Configure the main internal regulator output voltage
   */
-  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1) != HAL_OK)
+  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1_BOOST) != HAL_OK)
   {
     Error_Handler();
   }
@@ -230,10 +258,17 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
+  RCC_OscInitStruct.MSIState = RCC_MSI_ON;
+  RCC_OscInitStruct.MSICalibrationValue = 0;
+  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
+  RCC_OscInitStruct.PLL.PLLM = 1;
+  RCC_OscInitStruct.PLL.PLLN = 60;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
+  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -243,12 +278,12 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5) != HAL_OK)
   {
     Error_Handler();
   }
@@ -283,8 +318,8 @@ static void MX_DAC1_Init(void)
   /** DAC channel OUT1 config
   */
   sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
-  sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
-  sConfig.DAC_HighFrequency = DAC_HIGH_FREQUENCY_INTERFACE_MODE_DISABLE;
+  sConfig.DAC_Trigger = DAC_TRIGGER_T2_TRGO;
+  sConfig.DAC_HighFrequency = DAC_HIGH_FREQUENCY_INTERFACE_MODE_ABOVE_80MHZ;
   sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
   sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_DISABLE;
   sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
@@ -295,6 +330,7 @@ static void MX_DAC1_Init(void)
 
   /** DAC channel OUT2 config
   */
+  sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
   if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_2) != HAL_OK)
   {
     Error_Handler();
@@ -326,9 +362,9 @@ static void MX_TIM2_Init(void)
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 0;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 4294967295;
+  htim2.Init.Period = 2721;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
   {
     Error_Handler();
@@ -347,6 +383,23 @@ static void MX_TIM2_Init(void)
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMAMUX1_CLK_ENABLE();
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
 
 }
 
@@ -394,38 +447,7 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-  if (GPIO_Pin == GPIO_EXTI13_Pin)
-  {
-    //part2
-    #if IMPLEMENTATION_MODE == PART_2
-    HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
-    #endif
 
-    #if IMPLEMENTATION_MODE == PART_3 //tone = sample rate / samples per period
-    static uint32_t lastPress = 0; 
-    uint32_t currentPress = HAL_GetTick(); // get the current time in milliseconds
-    if (currentPress - lastPress < 200) return;
-    lastPress = currentPress; // update the last press time
-
-    toneIndex++; // increment the tone index
-    if (toneIndex >= N_TONES) toneIndex = 0; // wrap back to 0
-    __HAL_TIM_SET_AUTORELOAD(&htim2, toneARR[toneIndex]); //change sample rate
-    HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
-    #endif
-  }
-}
-#if IMPLEMENTATION_MODE == PART_2
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-    if (htim->Instance == TIM2) {
-      HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_8B_R, sine[sineIndex]);
-      sineIndex++;
-      if (sineIndex >= N_SAMPLES) sineIndex = 0; // wrap back to 0
-    }
-}
-#endif
 
 /* USER CODE END 4 */
 
