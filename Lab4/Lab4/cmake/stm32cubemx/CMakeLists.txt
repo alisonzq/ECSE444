@@ -8,9 +8,22 @@ set(MX_Defines_Syms
     $<$<CONFIG:Debug>:DEBUG>
 )
 
+# ST component drivers used by the application sensors
+set(SensorComponents_Src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/Components/hts221/hts221.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/Components/lis3mdl/lis3mdl.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/Components/lps22hb/lps22hb.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/Components/lsm6dsl/lsm6dsl.c
+)
+
 # STM32CubeMX generated include paths
 set(MX_Include_Dirs
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/Components/Common
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/Components/hts221
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/Components/lis3mdl
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/Components/lps22hb
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/Components/lsm6dsl
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32L4xx_HAL_Driver/Inc
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32L4xx_HAL_Driver/Inc/Legacy
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Middlewares/Third_Party/FreeRTOS/Source/include
@@ -23,6 +36,7 @@ set(MX_Include_Dirs
 # STM32CubeMX generated application sources
 set(MX_Application_Src
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/main.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/stm32l4s5i_iot01.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/freertos.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/stm32l4xx_it.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/stm32l4xx_hal_msp.c
@@ -79,6 +93,7 @@ set(MX_LINK_DIRS
 # Project static libraries
 set(MX_LINK_LIBS 
     STM32_Drivers
+    SensorComponents
     ${TOOLCHAIN_LINK_LIBRARIES}
     FreeRTOS	
 )
@@ -91,6 +106,10 @@ target_compile_definitions(stm32cubemx INTERFACE ${MX_Defines_Syms})
 add_library(STM32_Drivers OBJECT)
 target_sources(STM32_Drivers PRIVATE ${STM32_Drivers_Src})
 target_link_libraries(STM32_Drivers PUBLIC stm32cubemx)
+
+add_library(SensorComponents OBJECT)
+target_sources(SensorComponents PRIVATE ${SensorComponents_Src})
+target_link_libraries(SensorComponents PUBLIC stm32cubemx)
 
 
 # Create FreeRTOS static library

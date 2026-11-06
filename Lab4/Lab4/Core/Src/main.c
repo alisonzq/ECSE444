@@ -19,6 +19,11 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "stm32l4s5i_iot01.h"
+#include "hts221.h"
+#include "lis3mdl.h"
+#include "lps22hb.h"
+#include "lsm6dsl.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -142,11 +147,11 @@ int main(void)
   LPS22HB_T_Init(LPS22HB_I2C_ADDRESS, NULL);
 
   LSM6DSL_AccInit(
-      ((uint16_t)LSM6DSL_BDU_BLOCK_UPDATE << 8) |
+      ((uint16_t)LSM6DSL_BDU_BLOCK_UPDATE | LSM6DSL_ACC_GYRO_IF_INC_ENABLED << 8) |
       LSM6DSL_ODR_104Hz |
       LSM6DSL_ACC_FULLSCALE_2G);
   LSM6DSL_GyroInit(
-      ((uint16_t)LSM6DSL_BDU_BLOCK_UPDATE << 8) |
+      ((uint16_t)LSM6DSL_BDU_BLOCK_UPDATE | LSM6DSL_ACC_GYRO_IF_INC_ENABLED << 8) |
       LSM6DSL_ODR_104Hz |
       LSM6DSL_GYRO_FS_245);
 
@@ -180,15 +185,15 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
-  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+  // osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  // defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
-  osKernelStart();
+  // osKernelStart();
 
   /* We should never get here as control is now taken by the scheduler */
 
