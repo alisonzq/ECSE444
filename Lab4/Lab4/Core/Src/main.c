@@ -22,7 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -63,6 +63,42 @@ void StartDefaultTask(void const * argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+typedef enum {MODE_HTS221, MODE_LIS3MDL, MODE_LSM6DSL, MODE_LPS22HB} SensorMode;
+volatile SensorMode sensor_mode = MODE_HTS221; 
+
+float ReadHumidity(void)
+{
+  return HTS221_H_ReadHumidity(HTS221_I2C_ADDRESS);
+}
+
+void ReadMagnetometer(int16_t m[3])
+{
+  LIS3MDL_MagReadXYZ(m);
+}
+
+void ReadGyroscope(float g[3])
+{
+  LSM6DSL_GyroReadXYZAngRate(g);
+}
+
+float ReadPressure(void)
+{
+  return LPS22HB_P_ReadPressure(LPS22HB_I2C_ADDRESS);
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+
+  if (GPIO_Pin == GPIO_PIN_13)
+  {
+    static uint32_t lastPress = 0; 
+    uint32_t currentPress = HAL_GetTick(); // get the current time in milliseconds
+    if (currentPress - lastPress > 50) {
+      sensor_mode = (sensor_mode + 1) % 4;
+    }
+    lastPress = currentPress; // update the last press time
+  }
+}
 
 /* USER CODE END 0 */
 
@@ -122,7 +158,8 @@ int main(void)
       .Register3 = LIS3MDL_MAG_CONTINUOUS_MODE,
       .Register4 = LIS3MDL_MAG_OM_Z_HIGH,
       .Register5 = LIS3MDL_MAG_BDU_MSBLSB};
-  LIS3MDL_MagInit(magnetometer_init);
+  LIS3MDL_MagInit(magnetometer_init);  
+  
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -162,6 +199,40 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    char buf[64];
+    int len = 0;
+
+    switch (sensor_mode) {
+      case MODE_HTS221: {
+        float humidity = ReadHumidity();
+        len = snprintf(buf, sizeof buf, "Humidity (%%RH x100): %d\r\n", (int)(humidity * 100));
+        break;
+      }
+      case MODE_LIS3MDL: {
+        int16_t m[3];
+        ReadMagnetometer(m);
+        len = snprintf(buf, sizeof buf, "Mag X/Y/Z (mgauss): %d, %d, %d\r\n", m[0], m[1], m[2]);
+        break;
+      }
+      case MODE_LSM6DSL: {
+        float g[3];
+        ReadGyroscope(g);
+        len = snprintf(buf, sizeof buf, "Gyro X/Y/Z (mdps): %d, %d, %d\r\n", (int)g[0], (int)g[1], (int)g[2]);
+        break;
+      }
+      case MODE_LPS22HB: {
+        float pressure = ReadPressure();
+        len = snprintf(buf, sizeof buf, "Pressure (hPa x100): %d\r\n", (int)(pressure * 100));
+        break;
+      }
+      default:
+        break;
+    }
+
+    if (len > 0) {
+      HAL_UART_Transmit(&huart1, (uint8_t *)buf, len, HAL_MAX_DELAY);
+    }
+    HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }
