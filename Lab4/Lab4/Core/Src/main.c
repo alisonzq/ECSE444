@@ -19,11 +19,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
-#include "stm32l4s5i_iot01.h"
-#include "hts221.h"
-#include "lis3mdl.h"
-#include "lsm6dsl.h"
-#include "lps22hb.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
