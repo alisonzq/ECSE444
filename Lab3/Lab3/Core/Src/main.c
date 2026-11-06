@@ -82,6 +82,8 @@ static void MX_TIM2_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+//Called by the EXTI interrupt when the button edge arrives.
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
   if (GPIO_Pin == GPIO_PIN_13)
@@ -99,12 +101,13 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
     toneIndex++; // increment the tone index
     if (toneIndex >= N_TONES) toneIndex = 0; // wrap back to 0
-    __HAL_TIM_SET_AUTORELOAD(&htim2, toneARR[toneIndex]); //change sample rate
+    __HAL_TIM_SET_AUTORELOAD(&htim2, toneARR[toneIndex]); //change sample rate, changes TIM2’s ARR to the value for the currently selected note, which changes the pitch the speaker plays.
     HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
     #endif
   }
 }
 #if IMPLEMENTATION_MODE == PART_2
+//Called on every TIM2 update event. Sends the next sample to the DAC and wraps the index at 32.”
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
     if (htim->Instance == TIM2) {
@@ -188,8 +191,8 @@ int main(void)
   #endif
 
   #if IMPLEMENTATION_MODE == PART_3
-  __HAL_TIM_SET_AUTORELOAD(&htim2, toneARR[0]); //HAL macro that changes a timer’s ARR value while the program is running, changes the sample rate = how many samples the DAC outputs per second
-  HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t *)sine, N_SAMPLES, DAC_ALIGN_8B_R);
+  __HAL_TIM_SET_AUTORELOAD(&htim2, toneARR[0]); //HAL macro that changes a timer’s ARR value while the program is running, changes the sample rate = how many samples the DAC outputs per second => tone changes
+  HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t *)sine, N_SAMPLES, DAC_ALIGN_8B_R); //DMA copies sine[] into the DAC on each timer trigger, circularly, with no CPU work.
   HAL_TIM_Base_Start(&htim2);
   #endif
   /* USER CODE END 2 */
