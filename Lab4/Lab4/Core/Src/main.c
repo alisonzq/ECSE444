@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,7 +48,14 @@ UART_HandleTypeDef huart1;
 
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
+osThreadId sensorTaskHandle;
+osThreadId uartTaskHandle;
+osMutexId  msgMutexHandle;
+osSemaphoreId buttonSemHandle;
+osSemaphoreId dataReadySemHandle;
 
+static char msg_buf[64];   // text shared between sensor task and UART task
+static int  msg_len = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -58,7 +66,8 @@ static void MX_USART1_UART_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
-
+void StartSensorTask(void const * argument);
+void StartUartTask(void const * argument);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -93,8 +102,8 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   {
     static uint32_t lastPress = 0; 
     uint32_t currentPress = HAL_GetTick(); // get the current time in milliseconds
-    if (currentPress - lastPress > 50) {
-      sensor_mode = (sensor_mode + 1) % 4;
+    if (currentPress - lastPress > 50 && buttonSemHandle != NULL) { // debounce and check if semaphore is valid
+      osSemaphoreRelease(buttonSemHandle); //wake button task
     }
     lastPress = currentPress; // update the last press time
   }
@@ -142,11 +151,11 @@ int main(void)
   LPS22HB_T_Init(LPS22HB_I2C_ADDRESS, NULL);
 
   LSM6DSL_AccInit(
-      ((uint16_t)LSM6DSL_BDU_BLOCK_UPDATE << 8) |
+      ((uint16_t)(LSM6DSL_BDU_BLOCK_UPDATE | LSM6DSL_ACC_GYRO_IF_INC_ENABLED) << 8) |
       LSM6DSL_ODR_104Hz |
       LSM6DSL_ACC_FULLSCALE_2G);
   LSM6DSL_GyroInit(
-      ((uint16_t)LSM6DSL_BDU_BLOCK_UPDATE << 8) |
+      ((uint16_t)(LSM6DSL_BDU_BLOCK_UPDATE | LSM6DSL_ACC_GYRO_IF_INC_ENABLED) << 8) |
       LSM6DSL_ODR_104Hz |
       LSM6DSL_GYRO_FS_245);
 
@@ -163,11 +172,18 @@ int main(void)
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
-  /* add mutexes, ... */
+  osMutexDef(msgMutex);
+  msgMutexHandle = osMutexCreate(osMutex(msgMutex));
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
-  /* add semaphores, ... */
+  osSemaphoreDef(buttonSem);
+  buttonSemHandle = osSemaphoreCreate(osSemaphore(buttonSem), 1);
+  osSemaphoreWait(buttonSemHandle, 0); // start empty
+
+  osSemaphoreDef(dataReadySem);
+  dataReadySemHandle = osSemaphoreCreate(osSemaphore(dataReadySem), 1);
+  osSemaphoreWait(dataReadySemHandle, 0); // start empty
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */
@@ -184,7 +200,11 @@ int main(void)
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
+  osThreadDef(sensorTask, StartSensorTask, osPriorityNormal, 0, 512);
+  sensorTaskHandle = osThreadCreate(osThread(sensorTask), NULL);
+
+  osThreadDef(uartTask, StartUartTask, osPriorityNormal, 0, 512);
+  uartTaskHandle = osThreadCreate(osThread(uartTask), NULL);
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -199,40 +219,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    char buf[64];
-    int len = 0;
-
-    switch (sensor_mode) {
-      case MODE_HTS221: {
-        float humidity = ReadHumidity();
-        len = snprintf(buf, sizeof buf, "Humidity (%%RH x100): %d\r\n", (int)(humidity * 100));
-        break;
-      }
-      case MODE_LIS3MDL: {
-        int16_t m[3];
-        ReadMagnetometer(m);
-        len = snprintf(buf, sizeof buf, "Mag X/Y/Z (mgauss): %d, %d, %d\r\n", m[0], m[1], m[2]);
-        break;
-      }
-      case MODE_LSM6DSL: {
-        float g[3];
-        ReadGyroscope(g);
-        len = snprintf(buf, sizeof buf, "Gyro X/Y/Z (mdps): %d, %d, %d\r\n", (int)g[0], (int)g[1], (int)g[2]);
-        break;
-      }
-      case MODE_LPS22HB: {
-        float pressure = ReadPressure();
-        len = snprintf(buf, sizeof buf, "Pressure (hPa x100): %d\r\n", (int)(pressure * 100));
-        break;
-      }
-      default:
-        break;
-    }
-
-    if (len > 0) {
-      HAL_UART_Transmit(&huart1, (uint8_t *)buf, len, HAL_MAX_DELAY);
-    }
-    HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }
@@ -410,7 +396,77 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void StartSensorTask(void const * argument) {
 
+  char buf[64];
+  int len;
+
+  for(;;) {
+    osDelay(100);
+
+    float humidity = ReadHumidity();
+
+    int16_t m[3];
+    ReadMagnetometer(m);
+
+    float g[3];
+    ReadGyroscope(g);
+    
+    float pressure = ReadPressure();
+
+    len = 0;
+    switch (sensor_mode) {
+      case MODE_HTS221: {
+        len = snprintf(buf, sizeof buf, "Humidity: %d\r\n", (int)(humidity * 100));
+        break;
+      }
+      case MODE_LIS3MDL: {
+        len = snprintf(buf, sizeof buf, "Magnitude: %d, %d, %d\r\n", m[0], m[1], m[2]);
+        break;
+      }
+      case MODE_LSM6DSL: {
+        len = snprintf(buf, sizeof buf, "Gyroscope: %d, %d, %d\r\n", (int)g[0], (int)g[1], (int)g[2]);
+        break;
+      }
+      case MODE_LPS22HB: {
+        len = snprintf(buf, sizeof buf, "Pressure: %d\r\n", (int)(pressure * 100));
+        break;
+      }
+      default:
+        break;
+    }
+
+    if (len > 0) {
+      if (len >= (int)sizeof buf) {
+        len = sizeof buf - 1;
+      } 
+      osMutexWait(msgMutexHandle, osWaitForever);
+      memcpy(msg_buf, buf, len);
+      msg_len = len;
+      osMutexRelease(msgMutexHandle);
+      osSemaphoreRelease(dataReadySemHandle);
+    }
+  }
+}
+
+void StartUartTask(void const * argument) {
+  char buf[64];
+  int len;
+
+  for(;;) {
+    osDelay(1);
+
+    //wait for data to be ready from the sensor task, when osOK -> data is ready, got the semaphore
+    if(osSemaphoreWait(dataReadySemHandle, osWaitForever) == osOK) {
+      osMutexWait(msgMutexHandle, osWaitForever);
+      len = msg_len;
+      memcpy(buf, msg_buf, len);
+      osMutexRelease(msgMutexHandle);
+      HAL_UART_Transmit(&huart1, (uint8_t *)buf, len, HAL_MAX_DELAY);
+    }
+
+  }
+}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -427,6 +483,9 @@ void StartDefaultTask(void const * argument)
   for(;;)
   {
     osDelay(1);
+    if(osSemaphoreWait(buttonSemHandle, osWaitForever) == osOK) {
+      sensor_mode = (sensor_mode + 1) % 4;
+    }
   }
   /* USER CODE END 5 */
 }
