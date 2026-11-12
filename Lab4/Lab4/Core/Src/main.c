@@ -52,7 +52,6 @@ I2C_HandleTypeDef hi2c2;
 UART_HandleTypeDef huart1;
 
 osThreadId defaultTaskHandle;
-osThreadId button_handlingHandle;
 osThreadId transmit_to_UARHandle;
 osThreadId read_sensorHandle;
 /* USER CODE BEGIN PV */
@@ -72,9 +71,8 @@ static void MX_GPIO_Init(void);
 static void MX_I2C2_Init(void);
 static void MX_USART1_UART_Init(void);
 void StartDefaultTask(void const * argument);
-void StartTask02(void const * argument);
-void StartTask03(void const * argument);
-void StartTask04(void const * argument);
+void StartUartTask(void const * argument);
+void StartSensorTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
 void StartSensorTask(void const * argument);
@@ -210,24 +208,20 @@ int main(void)
   osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
-  // /* definition and creation of button_handling */
-  osThreadDef(button_handling, StartTask02, osPriorityIdle, 0, 128);
-  button_handlingHandle = osThreadCreate(osThread(button_handling), NULL);
-
-  // /* definition and creation of transmit_to_UAR */
-  osThreadDef(transmit_to_UAR, StartTask03, osPriorityIdle, 0, 128);
+  /* definition and creation of transmit_to_UAR */
+  osThreadDef(transmit_to_UAR, StartUartTask, osPriorityNormal, 0, 512);
   transmit_to_UARHandle = osThreadCreate(osThread(transmit_to_UAR), NULL);
 
-  // /* definition and creation of read_sensor */
-  osThreadDef(read_sensor, StartTask04, osPriorityIdle, 0, 128);
+  /* definition and creation of read_sensor */
+  osThreadDef(read_sensor, StartSensorTask, osPriorityNormal, 0, 512);
   read_sensorHandle = osThreadCreate(osThread(read_sensor), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
-  osThreadDef(sensorTask, StartSensorTask, osPriorityNormal, 0, 512);
-  sensorTaskHandle = osThreadCreate(osThread(sensorTask), NULL);
+  // osThreadDef(sensorTask, StartSensorTask, osPriorityNormal, 0, 512);
+  // sensorTaskHandle = osThreadCreate(osThread(sensorTask), NULL);
 
-  osThreadDef(uartTask, StartUartTask, osPriorityNormal, 0, 512);
-  uartTaskHandle = osThreadCreate(osThread(uartTask), NULL);
+  // osThreadDef(uartTask, StartUartTask, osPriorityNormal, 0, 512);
+  // uartTaskHandle = osThreadCreate(osThread(uartTask), NULL);
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -409,7 +403,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
@@ -418,8 +412,69 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void StartSensorTask(void const * argument) {
 
+/* USER CODE END 4 */
+
+/* USER CODE BEGIN Header_StartDefaultTask */
+/**
+  * @brief  Function implementing the defaultTask thread.
+  * @param  argument: Not used
+  * @retval None
+  */
+/* USER CODE END Header_StartDefaultTask */
+void StartDefaultTask(void const * argument)
+{
+  /* USER CODE BEGIN 5 */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+    if(osSemaphoreWait(buttonSemHandle, osWaitForever) == osOK) {
+      sensor_mode = (sensor_mode + 1) % 4;
+    }
+  }
+  /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_StartUartTask */
+/**
+* @brief Function implementing the transmit_to_UAR thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartUartTask */
+void StartUartTask(void const * argument)
+{
+  /* USER CODE BEGIN StartUartTask */
+  char buf[64];
+  int len;
+
+  for(;;) {
+    osDelay(1);
+
+    //wait for data to be ready from the sensor task, when osOK -> data is ready, got the semaphore
+    if(osSemaphoreWait(dataReadySemHandle, osWaitForever) == osOK) {
+      osMutexWait(msgMutexHandle, osWaitForever);
+      len = msg_len;
+      memcpy(buf, msg_buf, len);
+      osMutexRelease(msgMutexHandle);
+      HAL_UART_Transmit(&huart1, (uint8_t *)buf, len, HAL_MAX_DELAY);
+    }
+
+  }
+  /* USER CODE END StartUartTask */
+}
+
+/* USER CODE BEGIN Header_StartSensorTask */
+/**
+* @brief Function implementing the read_sensor thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartSensorTask */
+void StartSensorTask(void const * argument)
+{
+  /* USER CODE BEGIN StartSensorTask */
   char buf[64];
   int len;
 
@@ -469,101 +524,7 @@ void StartSensorTask(void const * argument) {
       osSemaphoreRelease(dataReadySemHandle);
     }
   }
-}
-
-void StartUartTask(void const * argument) {
-  char buf[64];
-  int len;
-
-  for(;;) {
-    osDelay(1);
-
-    //wait for data to be ready from the sensor task, when osOK -> data is ready, got the semaphore
-    if(osSemaphoreWait(dataReadySemHandle, osWaitForever) == osOK) {
-      osMutexWait(msgMutexHandle, osWaitForever);
-      len = msg_len;
-      memcpy(buf, msg_buf, len);
-      osMutexRelease(msgMutexHandle);
-      HAL_UART_Transmit(&huart1, (uint8_t *)buf, len, HAL_MAX_DELAY);
-    }
-
-  }
-}
-/* USER CODE END 4 */
-
-/* USER CODE BEGIN Header_StartDefaultTask */
-/**
-  * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used
-  * @retval None
-  */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void const * argument)
-{
-  /* USER CODE BEGIN 5 */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-    if(osSemaphoreWait(buttonSemHandle, osWaitForever) == osOK) {
-      sensor_mode = (sensor_mode + 1) % 4;
-    }
-  }
-  /* USER CODE END 5 */
-}
-
-/* USER CODE BEGIN Header_StartTask02 */
-/**
-* @brief Function implementing the button_handling thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartTask02 */
-void StartTask02(void const * argument)
-{
-  /* USER CODE BEGIN StartTask02 */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END StartTask02 */
-}
-
-/* USER CODE BEGIN Header_StartTask03 */
-/**
-* @brief Function implementing the transmit_to_UAR thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartTask03 */
-void StartTask03(void const * argument)
-{
-  /* USER CODE BEGIN StartTask03 */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END StartTask03 */
-}
-
-/* USER CODE BEGIN Header_StartTask04 */
-/**
-* @brief Function implementing the read_sensor thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartTask04 */
-void StartTask04(void const * argument)
-{
-  /* USER CODE BEGIN StartTask04 */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END StartTask04 */
+  /* USER CODE END StartSensorTask */
 }
 
 /**
