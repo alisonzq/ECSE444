@@ -37,6 +37,23 @@ add_executable(${CMAKE_PROJECT_NAME})
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
 
+# Application-owned sensor component library. Keep this outside the generated
+# CubeMX CMake file so code generation does not remove it.
+add_library(SensorComponents OBJECT
+    Drivers/Components/hts221/hts221.c
+    Drivers/Components/lis3mdl/lis3mdl.c
+    Drivers/Components/lps22hb/lps22hb.c
+    Drivers/Components/lsm6dsl/lsm6dsl.c
+)
+target_include_directories(SensorComponents PUBLIC
+    Drivers/Components/Common
+    Drivers/Components/hts221
+    Drivers/Components/lis3mdl
+    Drivers/Components/lps22hb
+    Drivers/Components/lsm6dsl
+)
+target_link_libraries(SensorComponents PUBLIC stm32cubemx)
+
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths
@@ -44,12 +61,16 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user sources here
+    Core/Src/stm32l4s5i_iot01.c
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined include paths
+    Drivers/Components/Common
+    Drivers/Components/hts221
+    Drivers/Components/lis3mdl
+    Drivers/Components/lps22hb
+    Drivers/Components/lsm6dsl
 )
 
 # Add project symbols (macros)
@@ -63,6 +84,7 @@ list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
+    SensorComponents
 
     # Add user defined libraries
 )

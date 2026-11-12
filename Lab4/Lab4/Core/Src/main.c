@@ -19,15 +19,15 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
+#include <stdio.h>
 #include "stm32l4s5i_iot01.h"
 #include "hts221.h"
 #include "lis3mdl.h"
 #include "lps22hb.h"
 #include "lsm6dsl.h"
-
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
-#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -51,6 +51,9 @@ I2C_HandleTypeDef hi2c2;
 UART_HandleTypeDef huart1;
 
 osThreadId defaultTaskHandle;
+osThreadId button_handlingHandle;
+osThreadId transmit_to_UARHandle;
+osThreadId read_sensorHandle;
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -61,6 +64,9 @@ static void MX_GPIO_Init(void);
 static void MX_I2C2_Init(void);
 static void MX_USART1_UART_Init(void);
 void StartDefaultTask(void const * argument);
+void StartTask02(void const * argument);
+void StartTask03(void const * argument);
+void StartTask04(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -185,15 +191,27 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  // osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
-  // defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+
+  // /* definition and creation of button_handling */
+  osThreadDef(button_handling, StartTask02, osPriorityIdle, 0, 128);
+  button_handlingHandle = osThreadCreate(osThread(button_handling), NULL);
+
+  // /* definition and creation of transmit_to_UAR */
+  osThreadDef(transmit_to_UAR, StartTask03, osPriorityIdle, 0, 128);
+  transmit_to_UARHandle = osThreadCreate(osThread(transmit_to_UAR), NULL);
+
+  // /* definition and creation of read_sensor */
+  osThreadDef(read_sensor, StartTask04, osPriorityIdle, 0, 128);
+  read_sensorHandle = osThreadCreate(osThread(read_sensor), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
-  // osKernelStart();
+  osKernelStart();
 
   /* We should never get here as control is now taken by the scheduler */
 
@@ -397,7 +415,6 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin : PC13 */
   GPIO_InitStruct.Pin = GPIO_PIN_13;
@@ -434,6 +451,60 @@ void StartDefaultTask(void const * argument)
     osDelay(1);
   }
   /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_StartTask02 */
+/**
+* @brief Function implementing the button_handling thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTask02 */
+void StartTask02(void const * argument)
+{
+  /* USER CODE BEGIN StartTask02 */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartTask02 */
+}
+
+/* USER CODE BEGIN Header_StartTask03 */
+/**
+* @brief Function implementing the transmit_to_UAR thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTask03 */
+void StartTask03(void const * argument)
+{
+  /* USER CODE BEGIN StartTask03 */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartTask03 */
+}
+
+/* USER CODE BEGIN Header_StartTask04 */
+/**
+* @brief Function implementing the read_sensor thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTask04 */
+void StartTask04(void const * argument)
+{
+  /* USER CODE BEGIN StartTask04 */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartTask04 */
 }
 
 /**
